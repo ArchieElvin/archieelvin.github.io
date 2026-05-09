@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 模型在线预览工具</title>
+    
+    <!-- 引入 model-viewer 核心脚本 -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+        }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f5f5f7;
+        }
+        /* 标题栏 */
+        header {
+            padding: 1rem 2rem;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        /* 3D 画布区域 */
+        model-viewer {
+            flex: 1;
+            width: 100%;
+            background-color: #eeeeee;
+            --poster-color: transparent;
+        }
+        /* 控制面板 */
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 50px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .upload-btn {
+            background: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .upload-btn:hover {
+            background: #357abd;
+            transform: translateY(-2px);
+        }
+        #file-input {
+            display: none;
+        }
+        .hint {
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2 style="margin:0; font-size: 1.2rem;">3D Previewer</h2>
+        <div class="hint">支持 .glb, .gltf 格式</div>
+    </header>
+
+    <!-- 3D 渲染核心组件 -->
+    <model-viewer id="main-viewer" 
+        camera-controls 
+        auto-rotate 
+        shadow-intensity="1" 
+        environment-image="neutral" 
+        exposure="1"
+        ar
+        touch-action="pan-y">
+        
+        <!-- 默认显示的加载提示 -->
+        <div slot="poster" style="display: flex; align-items: center; justify-content: center; height: 100%;">
+            <p>请上传模型文件进行预览</p>
+        </div>
+    </model-viewer>
+
+    <div class="controls">
+        <label for="file-input" class="upload-btn">选择模型文件</label>
+        <input type="file" id="file-input" accept=".glb,.gltf">
+        <span id="file-name" class="hint">尚未选择文件</span>
+    </div>
+
+    <script>
+        const modelViewer = document.querySelector('#main-viewer');
+        const fileInput = document.querySelector('#file-input');
+        const fileNameDisplay = document.querySelector('#file-name');
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                // 更新文件名显示
+                fileNameDisplay.textContent = file.name;
+
+                // 核心逻辑：创建 Blob URL
+                const url = URL.createObjectURL(file);
+                
+                // 将 URL 赋值给渲染器的 src
+                modelViewer.src = url;
+
+                // 释放内存（可选：在下一次更换文件时释放）
+                modelViewer.addEventListener('load', () => {
+                    console.log("模型加载完成");
+                });
+            }
+        });
+    </script>
+</body>
+</html>
