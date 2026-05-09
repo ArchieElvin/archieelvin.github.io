@@ -3,129 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 模型在线预览工具</title>
-    
-    <!-- 引入 model-viewer 核心脚本 -->
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-
+    <title>3D 多格式预览工具</title>
     <style>
-        :root {
-            --primary-color: #4a90e2;
-        }
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            background-color: #f5f5f7;
-        }
-        /* 标题栏 */
-        header {
-            padding: 1rem 2rem;
-            background: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 10;
-        }
-        /* 3D 画布区域 */
-        model-viewer {
-            flex: 1;
-            width: 100%;
-            background-color: #eeeeee;
-            --poster-color: transparent;
-        }
-        /* 控制面板 */
-        .controls {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px 25px;
-            border-radius: 50px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            backdrop-filter: blur(10px);
-            display: flex;
-            gap: 15px;
-            align-items: center;
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background: #333; }
+        #container { width: 100vw; height: 100vh; }
+        .ui-panel {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255,255,255,0.9); padding: 20px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         .upload-btn {
-            background: var(--primary-color);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.3s;
+            background: #007bff; color: white; padding: 10px 15px;
+            border-radius: 4px; cursor: pointer; display: inline-block;
         }
-        .upload-btn:hover {
-            background: #357abd;
-            transform: translateY(-2px);
-        }
-        #file-input {
-            display: none;
-        }
-        .hint {
-            color: #666;
-            font-size: 0.9rem;
-        }
+        #file-input { display: none; }
+        .info { margin-top: 10px; font-size: 12px; color: #666; }
     </style>
 </head>
 <body>
 
-    <header>
-        <h2 style="margin:0; font-size: 1.2rem;">3D Previewer</h2>
-        <div class="hint">支持 .glb, .gltf 格式</div>
-    </header>
+<div class="ui-panel">
+    <label class="upload-btn" for="file-input">上传模型 (GLB/OBJ)</label>
+    <input type="file" id="file-input" accept=".glb,.gltf,.obj">
+    <div class="info">支持 .glb, .gltf, .obj (白模)</div>
+    <div id="status" class="info"></div>
+</div>
 
-    <!-- 3D 渲染核心组件 -->
-    <model-viewer id="main-viewer" 
-        camera-controls 
-        auto-rotate 
-        shadow-intensity="1" 
-        environment-image="neutral" 
-        exposure="1"
-        ar
-        touch-action="pan-y">
+<div id="container"></div>
+
+<!-- 使用 Importmap 管理依赖 -->
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+
+    // --- 场景初始化 ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xeeeeee);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(2, 2, 2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('container').appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    
+    // 灯光
+    const light = new THREE.AmbientLight(0xffffff, 1);
+    scene.add(light);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    dirLight.position.set(5, 5, 5);
+    scene.add(dirLight);
+
+    let currentModel = null;
+
+    // --- 加载逻辑 ---
+    const gltfLoader = new GLTFLoader();
+    const objLoader = new OBJLoader();
+
+    document.getElementById('file-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const url = URL.createObjectURL(file);
+        const extension = file.name.split('.').pop().toLowerCase();
         
-        <!-- 默认显示的加载提示 -->
-        <div slot="poster" style="display: flex; align-items: center; justify-content: center; height: 100%;">
-            <p>请上传模型文件进行预览</p>
-        </div>
-    </model-viewer>
+        document.getElementById('status').innerText = "加载中...";
 
-    <div class="controls">
-        <label for="file-input" class="upload-btn">选择模型文件</label>
-        <input type="file" id="file-input" accept=".glb,.gltf">
-        <span id="file-name" class="hint">尚未选择文件</span>
-    </div>
+        // 清除旧模型
+        if (currentModel) scene.remove(currentModel);
 
-    <script>
-        const modelViewer = document.querySelector('#main-viewer');
-        const fileInput = document.querySelector('#file-input');
-        const fileNameDisplay = document.querySelector('#file-name');
+        if (extension === 'glb' || extension === 'gltf') {
+            gltfLoader.load(url, (gltf) => {
+                currentModel = gltf.scene;
+                setupModel();
+            });
+        } else if (extension === 'obj') {
+            objLoader.load(url, (obj) => {
+                currentModel = obj;
+                setupModel();
+            });
+        }
+    });
 
-        fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                // 更新文件名显示
-                fileNameDisplay.textContent = file.name;
+    function setupModel() {
+        scene.add(currentModel);
+        
+        // 自动缩放和居中模型
+        const box = new THREE.Box3().setFromObject(currentModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        currentModel.position.x += (currentModel.position.x - center.x);
+        currentModel.position.y += (currentModel.position.y - center.y);
+        currentModel.position.z += (currentModel.position.z - center.z);
+        
+        const maxDim = Math.max(size.x, size.y, size.z);
+        camera.position.set(maxDim, maxDim, maxDim);
+        controls.update();
+        
+        document.getElementById('status').innerText = "加载完成";
+    }
 
-                // 核心逻辑：创建 Blob URL
-                const url = URL.createObjectURL(file);
-                
-                // 将 URL 赋值给渲染器的 src
-                modelViewer.src = url;
+    // 动画循环
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
 
-                // 释放内存（可选：在下一次更换文件时释放）
-                modelViewer.addEventListener('load', () => {
-                    console.log("模型加载完成");
-                });
-            }
-        });
-    </script>
+    // 窗口自适应
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
 </body>
 </html>
